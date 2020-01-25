@@ -3,6 +3,47 @@
 #include <stdlib.h>
 #include <string.h>
 
+enum {
+    LEA,
+    IMM,
+    JMP,
+    CALL,
+    JZ,
+    JZN,
+    ENT,
+    ADJ,
+    LEV,
+    LI,
+    LC,
+    SI,
+    SC,
+    PUSH,
+    OR,
+    XOR,
+    AND,
+    EQ,
+    NE,
+    LT,
+    GT,
+    LE,
+    GE,
+    SHL,
+    SHR,
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    MOD,
+    OPEN,
+    READ,
+    CLOS,
+    PRTF,
+    MALC,
+    MSET,
+    MCMP,
+    EXIT
+}; // virtual machine commands
+
 // structure
 int token;           // current token
 char *src, *old_src; // pointer to sourcecode string
@@ -34,7 +75,24 @@ void program() {
     }
 }
 
-int eval() { return 0; }
+int eval() {
+    int op, *tmp;
+    while (1) {
+        if (op == IMM) {
+            ax = *pc++;
+        } else if (op == LC) {
+            ax = *(char *)ax;
+        } else if (op == LI) {
+            ax = *(int *)ax;
+        } else if (op == SC) {
+            ax = *(char *)*sp++ = ax; //wtf?????????
+        } else if (op == SI) {
+            *(int *)*sp++ = ax;
+        } else if (op == PUSH) {
+            *--sp = ax;
+        }
+    }
+}
 
 int main(int argc, char **argv) {
     int i, fd;
