@@ -3,10 +3,27 @@
     "tasks": [
         {
             "type": "shell",
-            "label": "gcc.exe build active file",
+            "label": "gcc.exe -m32 build active file",
             "command": "C:\\Program Files (x86)\\mingw-w64\\i686-7.3.0-posix-dwarf-rt_v5-rev0\\mingw32\\bin\\gcc.exe",
             "args": [
                 "-m32",
+                "${file}",
+                "-o",
+                "${fileDirname}\\${fileBasenameNoExtension}.exe"
+            ],
+            "options": {
+                "cwd": "C:\\Program Files (x86)\\mingw-w64\\i686-7.3.0-posix-dwarf-rt_v5-rev0\\mingw32\\bin"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build",
+        },
+        {
+            "type": "shell",
+            "label": "gcc.exe build active file",
+            "command": "C:\\Program Files (x86)\\mingw-w64\\i686-7.3.0-posix-dwarf-rt_v5-rev0\\mingw32\\bin\\gcc.exe",
+            "args": [
                 "${file}",
                 "-o",
                 "${fileDirname}\\${fileBasenameNoExtension}.exe"
