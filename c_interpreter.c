@@ -3,6 +3,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+int token;                    // current token
+int token_val;                // value of current token (mainly for number)
+char *src, *old_src;          // pointer to source code string;
+int poolsize;                 // default size of text/data/stack
+int line;                     // line number
+int *text,                    // text segment
+    *old_text,                // for dump text segment
+    *stack;                   // stack
+char *data;                   // data segment
+int *pc, *bp, *sp, ax, cycle; // virtual machine registers
+int *current_id,              // current parsed ID
+    *symbols;                 // symbol table
+int *idmain;                  // the `main` function
+
+// instructions
 enum {
     LEA,
     IMM,
@@ -42,8 +57,9 @@ enum {
     MSET,
     MCMP,
     EXIT
-}; // virtual machine commands
+};
 
+// tokens and classes (operators last and in precedence order)
 enum {
     Num = 128,
     Fun,
@@ -82,26 +98,27 @@ enum {
     Inc,
     Dec,
     Brak
-}; // tokens and classes (operators last and in precedence order)
+};
 
-// structure
-int token;           // current token
-char *src, *old_src; // pointer to sourcecode string
-int poolsize;        // default size of text/data/stack
-int line;            // line number
-
-// virtual machine
-int *text,     // text segment
-    *old_text, // for dump text segment
-    *stack;
-char *data; // data segment
-
-int *pc, *bp, *sp, ax, cycle; // virtual machine registers
-
+// fields of identifier
 enum { Token, Hash, Name, Type, Class, Value, BType, BClass, BValue, IdSize };
-int token_val;   // value of current token (mainly for number)
-int *current_id, // current parsed ID
-    *symbols;    // symbol table
+
+// types of variable/function
+enum { CHAR, INT, PTR };
+
+int basetype;  // the type of a declaration, make it global for convenience
+int expr_type; // the type of an expression
+
+// function frame
+//
+// 0: arg 1
+// 1: arg 2
+// 2: arg 3
+// 3: return address
+// 4: old bp pointer  <- index_of_bp
+// 5: local var 1
+// 6: local var 2
+int index_of_bp; // index of bp pointer on stack
 
 void next() {
     char *last_pos;
@@ -165,7 +182,7 @@ void next() {
                            (token >= 'A' && token <= 'F')) {
                         token_val =
                             token_val * 16 + (token & 15) +
-                            (token >= 'A'
+                            ((token >= 'A')
                                  ? 9
                                  : 0); // when token>='A', token must >'9'
                         token = *++src;
@@ -192,7 +209,7 @@ void next() {
                         token_val = '\n';
                     }
                 }
-                if (token_val == '"') {
+                if (token == '"') {
                     *data++ = token_val;
                 }
             }
@@ -314,12 +331,14 @@ void next() {
     return;
 }
 
-// types of variable/function
-enum { CHAR, INT, PTR };
-
-int expr_type;
-
-int index_of_bp; // index of bp pointer on stack
+void match(int tk) {
+    if (token == tk) {
+        next();
+    } else {
+        printf("%d: expected token (%d), but found (%d)", line, tk, token);
+        exit(-1);
+    }
+}
 
 void expression(int level) {
     int *id;
@@ -440,7 +459,7 @@ void expression(int level) {
             // emit code, default behaviour is to load the value
             // of the address which is stored in 'ax'
             expr_type = id[Type];
-            *++text = (expr_type == Char) ? LC : LI;
+            *++text = (expr_type == CHAR) ? LC : LI;
         }
     } else if (token == '(') {
         // cast or parenthesis
@@ -548,7 +567,6 @@ void expression(int level) {
 
     while (token >= level) {
         // parse token for binary operator and postfix operator
-        tmp = expr_type;
         tmp = expr_type;
         if (token == Assign) {
             // var = expr;
@@ -785,46 +803,6 @@ void expression(int level) {
             exit(-1);
         }
     }
-    return;
-}
-
-void match(int tk) {
-    if (token == tk) {
-        next();
-    } else {
-        printf("%d: expected token (%d), but found (%d)", line, tk, token);
-        exit(-1);
-    }
-}
-
-void enum_declaration() {
-    // parse enum [id] {a=1, b=3, c, ...}
-    int i;
-    i = 0;
-    while (token != '}') {
-        if (token != Id) {
-            printf("%d: bad enum identifier %d\n", line, token);
-            exit(-1);
-        }
-        next();
-        if (token == Assign) {
-            // like {a=10}
-            next();
-            if (token != Num) {
-                printf("%d: bad enum initializer\n", line);
-                exit(-1);
-            }
-            i = token_val;
-            next();
-        }
-        current_id[Class] = Num;
-        current_id[Type] = INT;
-        current_id[Value] = i++;
-
-        if (token == ',') {
-            next();
-        }
-    }
 }
 
 void statement() {
@@ -866,6 +844,13 @@ void statement() {
         *++text = JMP;
         *++text = (int)a;
         *b = (int)(text + 1);
+    } else if (token == '{') {
+        // {<statement> ...}
+        match('{');
+        while (token != '}') {
+            statement();
+        }
+        match('}');
     } else if (token == Return) {
         // return [expression];
         match(Return);
@@ -875,13 +860,6 @@ void statement() {
         match(';');
         // emmit code for return
         *++text = LEV;
-    } else if (token == '{') {
-        // {<statement> ...}
-        match('{');
-        while (token != '}') {
-            statement();
-        }
-        match('}');
     } else if (token == ';') {
         // empty statement
         match(';');
@@ -890,7 +868,6 @@ void statement() {
         expression(Assign);
         match(';');
     }
-    return;
 }
 
 void function_parameter() {
@@ -936,8 +913,6 @@ void function_parameter() {
     }
     index_of_bp = params + 1;
 }
-
-int basetype;
 
 void function_body() {
     // type func_name (...) {...}
@@ -1023,6 +998,36 @@ void function_declaration() {
     }
 }
 
+void enum_declaration() {
+    // parse enum [id] {a=1, b=3, c, ...}
+    int i;
+    i = 0;
+    while (token != '}') {
+        if (token != Id) {
+            printf("%d: bad enum identifier %d\n", line, token);
+            exit(-1);
+        }
+        next();
+        if (token == Assign) {
+            // like {a=10}
+            next();
+            if (token != Num) {
+                printf("%d: bad enum initializer\n", line);
+                exit(-1);
+            }
+            i = token_val;
+            next();
+        }
+        current_id[Class] = Num;
+        current_id[Type] = INT;
+        current_id[Value] = i++;
+
+        if (token == ',') {
+            next();
+        }
+    }
+}
+
 void global_declaration() {
     // global_declaration ::= enum_decl | variable_decl | function_decl
     // enum_decl ::= 'enum' [id] '{' id ['=' 'num'] {',' id ['=' 'num'] } '}'
@@ -1056,7 +1061,7 @@ void global_declaration() {
         match(Int);
     } else if (token == Char) {
         match(Char);
-        basetype == CHAR;
+        basetype = CHAR;
     }
 
     // parse the comma seperated variable declaration
@@ -1204,10 +1209,9 @@ int eval() {
     return 0;
 }
 
-int *idmain;
-
 int main(int argc, char **argv) {
-    int i, fd, *tmp;
+    int i, fd;
+    int *tmp;
 
     argc--;
     argv++;
