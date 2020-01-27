@@ -122,8 +122,10 @@ void next() {
             // parse identifier
             last_pos = src - 1;
             hash = token;
+
             while ((*src >= 'a' && *src <= 'z') ||
-                   (*src >= 'A' && *src <= 'Z') || (*src == '_')) {
+                   (*src >= 'A' && *src <= 'Z') ||
+                   (*src >= '0' && *src <= '9') || (*src == '_')) {
                 hash = hash * 147 + *src;
                 src++;
             }
@@ -140,6 +142,7 @@ void next() {
                 current_id = current_id + IdSize;
             }
 
+            // store new ID
             current_id[Name] = (int)last_pos;
             current_id[Hash] = hash;
             token = current_id[Token] = Id;
@@ -896,7 +899,7 @@ void function_parameter() {
     params = 0;
     while (token != ')') {
         type = INT;
-        if (token == INT) {
+        if (token == Int) {
             match(Int);
         } else if (token == Char) {
             type = CHAR;
@@ -1179,7 +1182,7 @@ int eval() {
             return *sp;
         } else if (op == OPEN) {
             ax = open((char *)sp[1], sp[0]);
-        } else if (op = CLOS) {
+        } else if (op == CLOS) {
             ax = close(*sp);
         } else if (op == READ) {
             ax = read(sp[2], (char *)sp[1], *sp);
@@ -1244,7 +1247,7 @@ int main(int argc, char **argv) {
     bp = sp = (int *)((int)stack + poolsize);
     ax = 0;
 
-    src = "char else enum if int return sizeof while"
+    src = "char else enum if int return sizeof while "
           "open read close printf malloc memset memcmp exit void main";
     // add keywords to symbol table
     i = Char;
@@ -1282,6 +1285,13 @@ int main(int argc, char **argv) {
     src[i] = 0; // add EOF
     close(fd);
 
+    program();
+
+    if (!(pc = (int *)idmain[Value])) {
+        printf("main() not defined\n");
+        return -1;
+    }
+
     // setup stack
     sp = (int *)((int)stack + poolsize);
     *--sp = EXIT; // call exit if main returns
@@ -1291,6 +1301,5 @@ int main(int argc, char **argv) {
     *--sp = (int)argv;
     *--sp = (int)tmp;
 
-    program();
     return eval();
 }
